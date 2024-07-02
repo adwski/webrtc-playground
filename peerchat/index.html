@@ -8,14 +8,44 @@
 </head>
 <body>
 
-    <div id="videos">
-        <video class="video-player" id="user-1" autoplay playsinline></video>
-        <video class="video-player" id="user-2" autoplay playsinline></video>
+    <div id="lobby">
+        <div id="lobby-header">
+            <p>Create OR Join a Room</p>
+        </div>
+        <div id="lobby-form-wrapper">
+            <form id="join-form">
+                <input type="text" name="user_name" id="user-name" placeholder="username" required />
+                <input type="text" name="room_code" id="room-code" placeholder="room code" required />
+                <input type="submit" value="Join Room" />
+            </form>
+        </div>
     </div>
 
-    <div id="form">
-        <input type="text" id="user-name" placeholder="username"/>
-        <input type="button" id="connect-button" value="Connect" onclick="initCall()"/>
+    <div id="room">
+        <div id="videos">
+            <video class="video-player" id="user-1" autoplay playsinline></video>
+            <video class="video-player" id="user-2" autoplay playsinline></video>
+        </div>
+
+        <div id="controls">
+            <div class="control-container" id="camera-btn">
+                <img src="/peerchat/icons/video.svg" />
+            </div>
+            <div class="control-container off-btn" id="camera-off-btn">
+                <img src="/peerchat/icons/video-slash.svg" />
+            </div>
+
+            <div class="control-container" id="mic-btn">
+                <img src="/peerchat/icons/microphone.svg" />
+            </div>
+            <div class="control-container off-btn" id="mic-off-btn">
+                <img src="/peerchat/icons/microphone-slash.svg" />
+            </div>
+
+            <div class="control-container" id="leave-btn">
+                <img src="/peerchat/icons/phone-flip.svg" />
+            </div>
+        </div>
     </div>
 
 </body>

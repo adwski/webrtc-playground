@@ -1,9 +1,6 @@
 const Config = {
-    RoomID: "test",
-
     APIEndpoint: "/api/room",
     SignalingEndpoint: "wss://192.168.1.122/signal",
-
     RTCConfig: {
         iceServers: [
             {
@@ -11,11 +8,93 @@ const Config = {
             }
         ]
     },
-
     UserMediaConfig: {
-        video: true,
-        audio: false
+        video: {
+            width: {min:640, max:1920},
+            height: {min:480, max:1080}
+        },
+        audio: true
     }
+}
+
+function init() {
+    const joinForm = document.getElementById("join-form")
+
+    const cameraBtn = document.getElementById("camera-btn")
+    const cameraOffBtn = document.getElementById("camera-off-btn")
+
+    const micBtn = document.getElementById("mic-btn")
+    const micOffBtn = document.getElementById("mic-off-btn")
+
+    const leaveBtn = document.getElementById("leave-btn")
+
+    const lobby = document.getElementById("lobby")
+    const room = document.getElementById("room")
+
+    const videoElementLocal = document.getElementById("user-1")
+    const videoElementRemote = document.getElementById("user-2")
+
+    let signaling;
+
+    joinForm.addEventListener("submit", async (e) => {
+        e.preventDefault()
+
+        const params = await prepareCall()
+
+        if (params) {
+            lobby.style.display = 'none'
+            room.style.display = 'block'
+
+            const [localStream, remoteStream] = await createStreams(videoElementLocal, videoElementRemote)
+
+            const toggleCamera = async (e) => {
+                const track = localStream.getTracks().find(track => track.kind === "video")
+                if (track) {
+                    track.enabled = !track.enabled
+                }
+            }
+
+            const toggleMic = async (e) => {
+                const track = localStream.getTracks().find(track => track.kind === "audio")
+                if (track) {
+                    track.enabled = !track.enabled
+                }
+            }
+
+            cameraBtn.addEventListener("click", async (e) => {
+                await toggleCamera()
+                cameraOffBtn.style.display = "block"
+                cameraBtn.style.display = "none"
+            })
+            cameraOffBtn.addEventListener("click", async (e) => {
+                await toggleCamera()
+                cameraOffBtn.style.display = "none"
+                cameraBtn.style.display = "block"
+            })
+
+            micBtn.addEventListener("click", async (e) => {
+                await toggleMic()
+                micOffBtn.style.display = "block"
+                micBtn.style.display = "none"
+            })
+            micOffBtn.addEventListener("click", async (e) => {
+                await toggleMic()
+                micOffBtn.style.display = "none"
+                micBtn.style.display = "block"
+            })
+
+            signaling = await startCall(params, localStream, remoteStream, videoElementLocal);
+        }
+    })
+
+    leaveBtn.addEventListener("click", (e) => {
+        lobby.style.display = 'block'
+        room.style.display = 'none'
+
+        if (signaling) {
+            signaling.stop()
+        }
+    })
 }
 
 function showRemoteVideo(yes) {
@@ -26,33 +105,46 @@ function showRemoteVideo(yes) {
     }
 }
 
-async function initCall() {
+async function prepareCall() {
     const myID = document.getElementById("user-name").value
     if (myID === "") {
         console.log("empty username")
         alert("empty username")
         return
     }
+    const roomID = document.getElementById("room-code").value
+    if (roomID === "") {
+        console.log("empty room code")
+        alert("empty room code")
+        return
+    }
 
-    const resp = await joinRoom(myID, Config.RoomID)
+    const resp = await joinRoom(myID, roomID)
     if (resp.message !== "OK") {
         alert("unable to join room: " + resp.error)
         console.log("unable to join the room", resp.error)
         return
     }
-
     console.log("successfully joined the room")
-
-    const [localStream, remoteStream] = await createStreams()
-    
-    const signaling = buildSignaling(Config.RoomID, myID, localStream, remoteStream)
-    await signaling.start()
+    return {userID: myID, roomID: roomID}
 }
 
-async function createStreams() {
-    const videoElementLocal = document.getElementById("user-1")
-    const videoElementRemote = document.getElementById("user-2")
+async function startCall(params, localStream, remoteStream, videoElementLocal) {
+    const signaling = buildSignaling(params.roomID, params.userID, localStream, remoteStream, videoElementLocal)
+    await signaling.start()
+    return signaling
+}
 
+async function createStreams(videoElementLocal, videoElementRemote) {
+    console.log("supported constraints:", navigator.mediaDevices.getSupportedConstraints())
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+        devices.forEach((device) => {
+            console.log("device:", device);
+            if (device.getCapabilities) {
+                console.log("device capabilities:", device.getCapabilities());
+            }
+        });
+      });
     const localStream = await navigator.mediaDevices.getUserMedia(Config.UserMediaConfig)
     videoElementLocal.srcObject = localStream
 
@@ -78,10 +170,11 @@ async function joinRoom(myID, roomID) {
     return response.json()
 }
 
-const buildSignaling = (roomID, myID, localStream, remoteStream) => {
+const buildSignaling = (roomID, myID, localStream, remoteStream, videoElementLocal) => {
     const logPref = `[signaling][${roomID}]`;
     const wsPath = Config.SignalingEndpoint + "/room/" + roomID + "/user/" + myID;
     let transport;
+    let peers = {};
 
     const createPeerConnection = async (localStream, remoteStream, onicecandidate) => {
         const pc = new RTCPeerConnection(Config.RTCConfig)
@@ -123,7 +216,6 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
         async start(){
             transport = buildWebSocketTransport(roomID);
             window.addEventListener('beforeunload', transport.disconnect)
-            let peers = {};
             transport.addListener(async function(announcement){
                 console.log(`${logPref} got announcement:`, announcement)
 
@@ -135,9 +227,10 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
                         // new user joined
                         // initiate peer connection
                         if (remoteUserID) {
+                            videoElementLocal.classList.add("small-frame")
                             if (pc) {
                                 console.log("user rejoined:", remoteUserID)
-                                await pc.restartIce();
+                                await pc.restartIce()
                             } else {
                                 console.log("new user has joined:", remoteUserID)
 
@@ -150,7 +243,7 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
                                         });
                                     }
                                 });
-                                peers[remoteUserID] = pc;
+                                peers[remoteUserID] = pc
                             }
                             const offer = await createOffer(pc)
                             transport.send({
@@ -165,18 +258,21 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
                         // user left
                         // remove peer connection
                         if (pc) {
+                            videoElementLocal.classList.remove("small-frame")
                             remoteStream.getTracks().forEach((track)=>{
+                                track.stop()
                                 remoteStream.removeTrack(track)
                             })
                             showRemoteVideo(false)
                             pc.close();
-                            delete peers[remoteUserID];
+                            delete peers[remoteUserID]
                         }
                         break;
 
                     case "offer":
                         // sdp offer
                         // create peer connection if not exist
+                        videoElementLocal.classList.add("small-frame")
                         if (!pc) {
                             pc = await createPeerConnection(localStream, remoteStream, async (event) => {
                                 if (event.candidate) {
@@ -203,7 +299,7 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
 
                     case "answer":
                         if (pc) {
-                            await pc.setRemoteDescription(announcement.payload);
+                            await pc.setRemoteDescription(announcement.payload)
                         } else {
                             console.log(`${logPref} got answer for unknown peer: ${remoteUserID}`)
                         }
@@ -224,6 +320,21 @@ const buildSignaling = (roomID, myID, localStream, remoteStream) => {
             transport.connect(wsPath)
         },
         async stop() {
+            showRemoteVideo(false)
+            remoteStream.getTracks().forEach((track)=>{
+                console.log("removing track", track)
+                track.stop()
+                remoteStream.removeTrack(track)
+            })
+            localStream.getTracks().forEach((track)=>{
+                console.log("removing track", track)
+                track.stop()
+                localStream.removeTrack(track)
+            })
+            for (const remoteUserID in peers) {
+                peers[remoteUserID].close();
+                delete peers[remoteUserID];
+            }
             transport.disconnect()
         }
     }
@@ -245,7 +356,7 @@ const buildWebSocketTransport = (name) => {
             socket = new WebSocket(addr);
 
             socket.addEventListener("open", (event) => {
-                console.log(`${logPref} connected to ${addr}`);
+                console.log(`${logPref} connected to ${addr}`)
             });
 
             socket.addEventListener("message", async (event) => {
@@ -261,10 +372,12 @@ const buildWebSocketTransport = (name) => {
         },
         disconnect: () => {
             if (socket) {
-                socket.close();
-                socket = null;
-                console.log(`${logPref} connection with ${address} is closed!`);
+                socket.close()
+                socket = null
+                console.log(`${logPref} connection with ${address} is closed!`)
             }
         }
     }
 }
+
+document.addEventListener("DOMContentLoaded", init)

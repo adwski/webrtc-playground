@@ -86,13 +86,11 @@ func (svc *Service) DeleteSignalingSession(ctx context.Context, roomID, userID s
 		Str("roomID", roomID).
 		Msg("signaling session deleted")
 
-	go func() {
-		ann := model.Announcement{
-			SRC:  userID,
-			Type: model.AnnouncementTypeLeft,
-		}
-		_ = svc.sw.Broadcast(ctx, ann, roomID)
-	}()
+	ann := model.Announcement{
+		SRC:  userID,
+		Type: model.AnnouncementTypeLeft,
+	}
+	_ = svc.sw.Broadcast(ctx, ann, roomID)
 	return nil
 }
 

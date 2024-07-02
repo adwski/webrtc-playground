@@ -147,6 +147,7 @@ func send(ctx context.Context, ann model.Announcement, tx chan<- model.Announcem
 	select {
 	case <-ctx.Done():
 		canceled = true
+		logger.Debug().Str("dst", ann.DST).Msg("canceled")
 	case <-tCh.C:
 		logger.Error().Str("dst", ann.DST).Msg("dead endpoint")
 	case tx <- ann:

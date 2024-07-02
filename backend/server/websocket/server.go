@@ -140,7 +140,7 @@ func (srv *Server) signal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) destroySession(roomID, userID string, logger *zerolog.Logger) {
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(defaultSignalingSessionCloseTimeout))
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(defaultSignalingSessionCloseTimeout))
 	defer cancel()
 	err := srv.svc.DeleteSignalingSession(ctx, roomID, userID)
 	if err != nil {

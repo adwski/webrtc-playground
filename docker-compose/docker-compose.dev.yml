@@ -16,8 +16,22 @@ services:
       - "../peerchat:/var/www/peerchat:ro"
     ports:
       - "80:80"
-      - "88:88"
       - "443:443"
+    networks:
+      - webrtc-pg
+    depends_on:
+      - backend
+
+  backend:
+    logging: *logging
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: docker-compose/backend.Dockerfile
+      target: dev
+    expose:
+      - 8888
+      - 8080
     networks:
       - webrtc-pg
 

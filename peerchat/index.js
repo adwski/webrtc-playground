@@ -1,6 +1,6 @@
 const Config = {
     APIEndpoint: "/api/room",
-    SignalingEndpoint: "wss://192.168.1.122/signal",
+    SignalingEndpoint: "wss://"+ location.host +"/signal",
     RTCConfig: {
         iceServers: [
             {
